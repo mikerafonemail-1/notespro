@@ -4,11 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notes</title>
-
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -32,18 +28,10 @@
         }
         #notes-container { display: none; }
         #auth-container { max-width: 400px; }
-        #loading {
-            text-align: center;
-            font-style: italic;
-            color: #888;
-        }
+        #loading { text-align: center; font-style: italic; color: #888; }
         .auth-form { display: none; }
         .auth-form.active { display: block; }
-        .auth-form h2 {
-            text-align: center;
-            color: #4a4a4a;
-            margin-top: 0;
-        }
+        .auth-form h2 { text-align: center; color: #4a4a4a; margin-top: 0; }
         .auth-form input[type="email"],
         .auth-form input[type="password"] {
             width: 100%;
@@ -61,18 +49,16 @@
             font-size: 16px;
             font-weight: bold;
             color: #fff;
-            background-color: #007bff;
+            background-color: #3ecf8e;
             border: none;
             border-radius: 6px;
             cursor: pointer;
             transition: background-color 0.2s;
             margin-bottom: 10px;
         }
-        .auth-button:hover { background-color: #0056b3; }
-        .google-button { background-color: #4285F4; }
-        .google-button:hover { background-color: #357ae8; }
+        .auth-button:hover { background-color: #36b17c; }
         .form-toggle {
-            color: #007bff;
+            color: #3ecf8e;
             text-decoration: underline;
             cursor: pointer;
             text-align: center;
@@ -84,6 +70,7 @@
             font-size: 14px;
             text-align: center;
             margin-bottom: 10px;
+            min-height: 1.2em;
         }
         #notes-header {
             display: flex;
@@ -91,10 +78,7 @@
             align-items: center;
             margin-bottom: 15px;
         }
-        #notes-header h1 {
-            margin: 0;
-            font-size: 24px;
-        }
+        #notes-header h1 { margin: 0; font-size: 24px; }
         #logout-button {
             padding: 8px 12px;
             font-size: 14px;
@@ -117,10 +101,7 @@
             resize: vertical;
             margin-bottom: 15px;
         }
-        #note-input:focus {
-            outline: none;
-            border-color: #007bff;
-        }
+        #note-input:focus { outline: none; border-color: #3ecf8e; }
         #save-button {
             display: block;
             width: 100%;
@@ -128,26 +109,53 @@
             font-size: 16px;
             font-weight: bold;
             color: #fff;
-            background-color: #007bff;
+            background-color: #3ecf8e;
             border: none;
             border-radius: 6px;
             cursor: pointer;
         }
+        #save-button:hover { background-color: #36b17c; }
+        
+        /* Note Item Styles */
         .note-item {
             position: relative;
             background-color: #fdfbe8;
             border: 1px solid #f0e9c8;
             border-radius: 6px;
             padding: 15px;
-            padding-right: 40px;
             margin-bottom: 10px;
+        }
+        .note-item.shared-view {
+             background-color: #f5f5f5;
+             border-color: #ddd;
+        }
+        .note-text {
+            padding-right: 60px; /* Space for buttons */
             word-wrap: break-word; 
             white-space: pre-wrap;
+            min-height: 24px;
         }
-        .delete-button {
+        .note-text[contenteditable="true"] {
+            outline: 1px dashed #3ecf8e;
+            cursor: text;
+        }
+        .note-text[contenteditable="true"]:focus {
+            outline: 2px solid #3ecf8e;
+        }
+        .note-meta {
+            font-size: 12px;
+            color: #999;
+            font-style: italic;
+            margin-top: 10px;
+        }
+        .note-actions {
             position: absolute;
             top: 10px;
             right: 10px;
+            display: flex;
+            gap: 5px;
+        }
+        .share-button, .delete-button {
             width: 24px;
             height: 24px;
             border-radius: 50%;
@@ -160,15 +168,74 @@
             text-align: center;
             cursor: pointer;
         }
-        .delete-button:hover {
-            background-color: #fbecec;
-            color: #c00;
-            border-color: #c00;
+        .share-button { font-size: 12px; line-height: 23px; }
+        .delete-button:hover { background-color: #fbecec; color: #c00; border-color: #c00; }
+        .share-button:hover { background-color: #e6f7ff; color: #007bff; border-color: #007bff; }
+        
+        .empty-state { text-align: center; color: #888; font-style: italic; }
+
+        /* Share Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none; /* Hidden by default */
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
         }
-        .empty-state {
-            text-align: center;
-            color: #888;
-            font-style: italic;
+        .modal-content {
+            background: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        .modal-content h3 { margin-top: 0; }
+        .modal-content input, .modal-content select {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 8px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .modal-share-row { display: flex; gap: 10px; }
+        .modal-share-row select { flex-basis: 100px; }
+        .modal-share-row button { flex-grow: 1; }
+        
+        #current-shares-list {
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        .share-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .share-item-email {
+            font-weight: bold;
+            font-size: 13px;
+        }
+        .share-item-permission {
+            font-size: 12px;
+            color: #555;
+            background: #f0f0f0;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+        .unshare-button {
+            background: none;
+            border: none;
+            color: red;
+            cursor: pointer;
+            font-size: 16px;
         }
     </style>
 </head>
@@ -179,17 +246,14 @@
     </div>
 
     <div id="auth-container" class="container" style="display: none;">
-        
         <div id="login-form" class="auth-form active">
             <h2>Login</h2>
             <p id="login-error" class="auth-error"></p>
             <input type="email" id="login-email" placeholder="Email" required>
             <input type="password" id="login-password" placeholder="Password" required>
             <button id="login-button" class="auth-button">Login</button>
-            <button id="google-login-button" class="auth-button google-button">Sign in with Google</button>
             <a id="toggle-to-signup" class="form-toggle">Need an account? Sign Up</a>
         </div>
-
         <div id="signup-form" class="auth-form">
             <h2>Sign Up</h2>
             <p id="signup-error" class="auth-error"></p>
@@ -198,109 +262,103 @@
             <button id="signup-button" class="auth-button">Sign Up</button>
             <a id="toggle-to-login" class="form-toggle">Have an account? Login</a>
         </div>
-
     </div>
 
     <div id="notes-container" class="container">
-        
         <div id="notes-header">
-            <h1>My Notes ☁️</h1>
+            <h1>My Notes ⚡️</h1>
             <button id="logout-button">Logout</button>
         </div>
-        
-        <textarea id="note-input" placeholder="Write your note here..."></textarea>
+        <textarea id="note-input" placeholder="Write your new note here..."></textarea>
         <button id="save-button">Save Note</button>
-
         <div class="notes-display-area">
             <h2>Saved Notes</h2>
-            <div id="notes-list">
-                </div>
+            <div id="notes-list"></div>
+        </div>
+    </div>
+
+    <div id="share-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>Share Note</h3>
+            <p id="share-error" class="auth-error"></p>
+            <div class="modal-share-row">
+                <input type="email" id="share-email" placeholder="Enter user's email">
+                <select id="share-permission">
+                    <option value="view">View</option>
+                    <option value="edit">Edit</option>
+                </select>
+            </div>
+            <button id="share-save-button" class="auth-button">Share</button>
+            
+            <h4>Currently Shared With:</h4>
+            <div id="current-shares-list">
+                <p class="empty-state">Not shared with anyone yet.</p>
+            </div>
+
+            <button id="share-close-button" class="auth-button" style="background-color: #888; margin-top: 15px;">Close</button>
         </div>
     </div>
 
 
     <script>
-        // --- Step 1: Your Correct Firebase Config ---
-        // I have placed your config object here.
-        const firebaseConfig = {
-          apiKey: "AIzaSyChMDPHA6ZxKPSlIz_EjOrx5dxWe23V3rg",
-          authDomain: "notes-3c960.firebaseapp.com",
-          projectId: "notes-3c960",
-          storageBucket: "notes-3c960.firebasestorage.app",
-          messagingSenderId: "1027593751259",
-          appId: "1:1027593751259:web:2e0dcf85e7d2fed1e81afe",
-          measurementId: "G-52VG7HF5F6"
-        };
-        // -------------------------------------------------
-        // DO NOT ADD 'import' or 'initializeApp' from v9 here
-        // -------------------------------------------------
-
-        // --- Initialize Firebase (v8 Syntax) ---
-        // This is the correct initialization for this app
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-        const auth = firebase.auth();
-        const googleProvider = new firebase.auth.GoogleAuthProvider();
+        // --- Initialize Supabase ---
+        // TODO: Replace with your project's URL and Anon Key
+        const SUPABASE_URL = 'https://mrowwjmahjpejunhmvrs.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yb3d3am1haGpwZWp1bmhtdnJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE4NDUwMzYsImV4cCI6MjA3NzQyMTAzNn0.5-lmxomtOaYxaV0dfch--HSYEo0Z79yDxgdF7IdCgvw';
+        
+        const { createClient } = supabase;
+        const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         // --- Global App State ---
-        let currentUserUid = null;
-        let notesCollectionRef = null;
+        let currentUser = null;
+        let currentNoteId = null; // For the share modal
 
         // --- DOM Elements ---
         const loadingDiv = document.getElementById('loading');
         const authContainer = document.getElementById('auth-container');
         const notesContainer = document.getElementById('notes-container');
-        
-        // Auth Forms
         const loginForm = document.getElementById('login-form');
         const signupForm = document.getElementById('signup-form');
         const toggleToSignup = document.getElementById('toggle-to-signup');
         const toggleToLogin = document.getElementById('toggle-to-login');
-
-        // Auth Buttons
         const loginButton = document.getElementById('login-button');
         const signupButton = document.getElementById('signup-button');
-        const googleLoginButton = document.getElementById('google-login-button');
         const logoutButton = document.getElementById('logout-button');
-        
-        // Auth Error fields
         const loginError = document.getElementById('login-error');
         const signupError = document.getElementById('signup-error');
-
-        // Notes App Elements
         const noteInput = document.getElementById('note-input');
         const saveButton = document.getElementById('save-button');
         const notesList = document.getElementById('notes-list');
 
+        // --- Share Modal Elements ---
+        const shareModal = document.getElementById('share-modal');
+        const shareEmailInput = document.getElementById('share-email');
+        const sharePermissionInput = document.getElementById('share-permission');
+        const shareSaveButton = document.getElementById('share-save-button');
+        const shareCloseButton = document.getElementById('share-close-button');
+        const shareError = document.getElementById('share-error');
+        const currentSharesList = document.getElementById('current-shares-list');
+
 
         // --- MASTER AUTH LOGIC ---
-        auth.onAuthStateChanged(user => {
-            if (user) {
-                // --- USER IS LOGGED IN ---
-                currentUserUid = user.uid;
-                notesCollectionRef = db.collection('notes').doc(currentUserUid).collection('my_notes');
-                
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+            if (session) {
+                currentUser = session.user;
                 notesContainer.style.display = 'block';
                 authContainer.style.display = 'none';
                 loadingDiv.style.display = 'none';
-                
                 loadNotes();
-
+                // *** Realtime listener REMOVED ***
             } else {
-                // --- USER IS LOGGED OUT ---
-                currentUserUid = null;
-                notesCollectionRef = null;
-                
+                currentUser = null;
                 notesContainer.style.display = 'none';
                 authContainer.style.display = 'block';
                 loadingDiv.style.display = 'none';
-
                 notesList.innerHTML = '';
             }
         });
 
         // --- AUTH EVENT HANDLERS ---
-
         toggleToSignup.onclick = () => {
             loginForm.classList.remove('active');
             signupForm.classList.add('active');
@@ -310,101 +368,103 @@
             loginForm.classList.add('active');
         };
 
-        signupButton.onclick = () => {
+        signupButton.onclick = async () => {
             const email = document.getElementById('signup-email').value;
             const password = document.getElementById('signup-password').value;
-            
+            signupError.textContent = "";
             if (!email || !password) {
                 signupError.textContent = "Please enter an email and password.";
                 return;
             }
-            
-            auth.createUserWithEmailAndPassword(email, password)
-                .then(userCredential => {
-                    console.log("User signed up:", userCredential.user.uid);
-                    signupError.textContent = "";
-                    document.getElementById('signup-email').value = "";
-                    document.getElementById('signup-password').value = "";
-                })
-                .catch(error => {
-                    signupError.textContent = error.message;
-                    console.error("Signup error:", error);
-                });
+            const { data, error } = await supabaseClient.auth.signUp({
+                email: email,
+                password: password,
+            });
+            if (error) {
+                signupError.textContent = error.message;
+            } else {
+                signupError.textContent = "Sign up successful! Please check your email to verify.";
+                document.getElementById('signup-email').value = "";
+                document.getElementById('signup-password').value = "";
+            }
         };
 
-        loginButton.onclick = () => {
+        loginButton.onclick = async () => {
             const email = document.getElementById('login-email').value;
             const password = document.getElementById('login-password').value;
-            
+            loginError.textContent = "";
             if (!email || !password) {
                 loginError.textContent = "Please enter an email and password.";
                 return;
             }
-
-            auth.signInWithEmailAndPassword(email, password)
-                .then(userCredential => {
-                    console.log("User logged in:", userCredential.user.uid);
-                    loginError.textContent = "";
-                    document.getElementById('login-email').value = "";
-                    document.getElementById('login-password').value = "";
-                })
-                .catch(error => {
-                    loginError.textContent = error.message;
-                    console.error("Login error:", error);
-                });
-        };
-
-        googleLoginButton.onclick = () => {
-            auth.signInWithPopup(googleProvider)
-                .then(result => {
-                    console.log("Google login success:", result.user.uid);
-                })
-                .catch(error => {
-                    loginError.textContent = "Google login failed: " + error.message;
-                    console.error("Google login error:", error);
-                });
-        };
-
-        logoutButton.onclick = () => {
-            auth.signOut().then(() => {
-                console.log("User logged out.");
+            const { data, error } = await supabaseClient.auth.signInWithPassword({
+                email: email,
+                password: password,
             });
+            if (error) {
+                loginError.textContent = error.message;
+            }
         };
 
-        // --- NOTES APP LOGIC ---
+        logoutButton.onclick = async () => {
+            await supabaseClient.auth.signOut();
+        };
 
+
+        // --- Realtime subscription function REMOVED ---
+
+
+        // --- MODIFIED: NOTES APP LOGIC ---
+
+        /**
+         * Loads all notes user can see (owned and shared).
+         */
         async function loadNotes() {
-            if (!notesCollectionRef) return; 
-
+            if (!currentUser) return;
             notesList.innerHTML = '<p class="empty-state">Loading...</p>';
-
             try {
-                const querySnapshot = await notesCollectionRef.orderBy("createdAt", "desc").get();
-                notesList.innerHTML = ''; 
+                // 1. Get all notes user can see (thanks to RLS)
+                const { data: notes, error: notesError } = await supabaseClient
+                    .from('notes')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                if (notesError) throw notesError;
 
-                if (querySnapshot.empty) {
+                // 2. Get all share info related to the user
+                const { data: shares, error: sharesError } = await supabaseClient
+                    .from('note_shares')
+                    .select('*');
+                if (sharesError) throw sharesError;
+
+                // 3. Create a "lookup map" for permissions on notes shared *with me*
+                const sharePermissions = new Map();
+                if (shares) {
+                    shares.forEach(share => {
+                        if (share.shared_with_email === currentUser.email) {
+                            sharePermissions.set(share.note_id, share.permission_level);
+                        }
+                    });
+                }
+
+                notesList.innerHTML = ''; // Clear list
+                if (!notes || notes.length === 0) {
                     notesList.innerHTML = '<p class="empty-state">No notes saved yet.</p>';
                     return;
                 }
 
-                querySnapshot.forEach(doc => {
-                    const note = doc.data();
-                    const noteId = doc.id;
-                    const noteText = note.text;
-
-                    const noteElement = document.createElement('div');
-                    noteElement.classList.add('note-item');
-                    noteElement.textContent = noteText; 
-
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.classList.add('delete-button');
-                    deleteBtn.innerHTML = '&times;';
-                    deleteBtn.dataset.noteId = noteId; 
+                // 4. Render each note with its correct permission
+                notes.forEach(note => {
+                    const isOwner = note.user_id === currentUser.id;
+                    const sharedPermission = sharePermissions.get(note.id);
                     
-                    deleteBtn.onclick = () => deleteNote(noteId);
-
-                    noteElement.appendChild(deleteBtn);
-                    notesList.appendChild(noteElement);
+                    let permission = 'none';
+                    if (isOwner) {
+                        permission = 'owner';
+                    } else if (sharedPermission) {
+                        permission = sharedPermission; // 'view' or 'edit'
+                    }
+                    
+                    renderNote(note, permission);
                 });
 
             } catch (error) {
@@ -413,44 +473,50 @@
             }
         }
 
-        async function deleteNote(noteId) {
-            if (!notesCollectionRef) return;
-            
-            if (confirm("Are you sure you want to delete this note?")) {
-                try {
-                    await notesCollectionRef.doc(noteId).delete();
-                    loadNotes(); 
-                } catch (error) {
-                    console.error("Error deleting note: ", error);
-                }
-            }
-        }
+        /**
+         * Renders a single note item based on permission
+         */
+        function renderNote(note, permission) {
+            const noteElement = document.createElement('div');
+            noteElement.classList.add('note-item');
+            noteElement.setAttribute('data-note-id', note.id); // Add ID for potential updates
 
-        async function handleSaveNote() {
-            if (!notesCollectionRef) return;
+            const noteText = document.createElement('div');
+            noteText.classList.add('note-text');
+            noteText.textContent = note.text;
 
-            const newNoteText = noteInput.value.trim();
+            const noteMeta = document.createElement('div');
+            noteMeta.classList.add('note-meta');
 
-            if (newNoteText) {
-                saveButton.disabled = true;
-                saveButton.textContent = "Saving...";
+            const noteActions = document.createElement('div');
+            noteActions.classList.add('note-actions');
+
+            if (permission === 'owner') {
+                noteText.contentEditable = true;
+                // Add a small delay on blur to prevent saving on every click
+                let saveTimeout;
+                noteText.addEventListener('input', () => {
+                    clearTimeout(saveTimeout);
+                    saveTimeout = setTimeout(() => {
+                        handleUpdateNote(note.id, noteText.textContent);
+                    }, 1000); // Save 1 second after user stops typing
+                });
+
+                const shareBtn = document.createElement('button');
+                shareBtn.classList.add('share-button');
+                shareBtn.innerHTML = '&#128101;'; // Share icon
+                shareBtn.title = "Share note";
+                shareBtn.onclick = () => openShareModal(note.id);
                 
-                try {
-                    await notesCollectionRef.add({
-                        text: newNoteText,
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                    });
+                const deleteBtn = document.createElement('button');
+                deleteBtn.classList.add('delete-button');
+                deleteBtn.innerHTML = '&times;';
+                deleteBtn.title = "Delete note";
+                deleteBtn.onclick = () => deleteNote(note.id);
 
-                    noteInput.value = ''; 
-                    loadNotes(); 
-                    
-                } catch (error) {
-                    console.error("Error saving note: ", error);
-                }
+                noteActions.append(shareBtn, deleteBtn);
 
-                saveButton.disabled = false;
-                saveButton.textContent = "Save Note";
-            }
-        }
-        
-        saveButton.addEventListener('click',
+            } else if (permission === 'edit') {
+                noteText.contentEditable = true;
+                let saveTimeout;
+                noteText.addEventListener('input',
